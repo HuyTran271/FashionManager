@@ -1,8 +1,10 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../services/database_helper.dart';
 import '../widgets/item_form_sheet.dart';
 import '../widgets/item_detail_sheet.dart';
+import '../widgets/ai_autofill_sheet.dart';
 
 class WardrobeScreen extends StatefulWidget {
   const WardrobeScreen({super.key});
@@ -14,6 +16,7 @@ class WardrobeScreen extends StatefulWidget {
 class _WardrobeScreenState extends State<WardrobeScreen>
     with SingleTickerProviderStateMixin {
   final _db = DatabaseHelper.instance;
+  final _picker = ImagePicker();
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _categories = [];
@@ -28,7 +31,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     super.initState();
     _fabAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 600),
     );
     _loadData();
     WidgetsBinding.instance
@@ -66,9 +69,161 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         .toList();
   }
 
-  // ─── Add / Edit ───────────────────────────────────────────────────────────
+  // ─── Add flows ────────────────────────────────────────────────────────────
 
-  Future<void> _openAddForm() async {
+  void _showAddOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36, height: 4,
+              decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 20),
+            const Text('Thêm sản phẩm',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 20),
+
+            // AI Camera option (highlighted)
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAndAnalyzeImage(ImageSource.camera);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF1C1C1E), Color(0xFF3A3A3C)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: const Row(
+                  children: [
+                    Icon(Icons.camera_alt, color: Colors.white, size: 24),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Text('Chụp ảnh + AI Auto-fill',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w700,
+                                  )),
+                              SizedBox(width: 8),
+                              Icon(Icons.auto_awesome,
+                                  color: Colors.amber, size: 16),
+                            ],
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'AI tự động nhận dạng loại đồ',
+                            style: TextStyle(
+                                color: Colors.white54, fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.arrow_forward_ios,
+                        color: Colors.white38, size: 16),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+
+            // Gallery + AI
+            ListTile(
+              leading: Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0EEE9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.photo_library_outlined,
+                    color: Colors.black, size: 22),
+              ),
+              title: const Text('Chọn từ thư viện',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Kèm AI phân tích ảnh',
+                  style: TextStyle(fontSize: 11)),
+              trailing:
+                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pickAndAnalyzeImage(ImageSource.gallery);
+              },
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+            const SizedBox(height: 4),
+
+            // Manual
+            ListTile(
+              leading: Container(
+                width: 42, height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF0EEE9),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.edit_outlined,
+                    color: Colors.black, size: 22),
+              ),
+              title: const Text('Nhập thủ công',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: const Text('Điền thông tin tự tay',
+                  style: TextStyle(fontSize: 11)),
+              trailing:
+                  const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openManualForm();
+              },
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndAnalyzeImage(ImageSource source) async {
+    final picked = await _picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => AiAutofillSheet(imagePath: picked.path),
+    );
+    if (result == true) _loadData();
+  }
+
+  Future<void> _openManualForm() async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -88,8 +243,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     if (result == true) _loadData();
   }
 
-  // ─── Detail ───────────────────────────────────────────────────────────────
-
   Future<void> _openDetail(Map<String, dynamic> item) async {
     final result = await showModalBottomSheet<String>(
       context: context,
@@ -104,31 +257,25 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     }
   }
 
-  // ─── Delete ───────────────────────────────────────────────────────────────
-
   Future<void> _deleteItem(Map<String, dynamic> item) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
         title: Column(
           children: [
             Container(
-              width: 56,
-              height: 56,
+              width: 56, height: 56,
               decoration: BoxDecoration(
-                color: Colors.red[50],
-                shape: BoxShape.circle,
-              ),
+                color: Colors.red[50], shape: BoxShape.circle),
               child: Icon(Icons.delete_outline,
                   color: Colors.red[400], size: 28),
             ),
             const SizedBox(height: 12),
-            const Text(
-              'Xóa sản phẩm?',
-              style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
-            ),
+            const Text('Xóa sản phẩm?',
+                style: TextStyle(
+                    fontWeight: FontWeight.w800, fontSize: 18)),
           ],
         ),
         content: Text(
@@ -180,8 +327,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     return Scaffold(
       backgroundColor: const Color(0xFFF7F5F2),
       body: NestedScrollView(
-        headerSliverBuilder: (ctx, innerBoxIsScrolled) => [
-          _buildSliverAppBar(innerBoxIsScrolled),
+        headerSliverBuilder: (ctx, innerScrolled) => [
+          _buildSliverAppBar(innerScrolled),
           SliverToBoxAdapter(child: _buildCategoryFilter()),
         ],
         body: _isLoading
@@ -193,7 +340,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         scale: CurvedAnimation(
             parent: _fabAnimController, curve: Curves.elasticOut),
         child: FloatingActionButton(
-          onPressed: _openAddForm,
+          onPressed: _showAddOptions,
           backgroundColor: Colors.black,
           elevation: 4,
           child: const Icon(Icons.add, color: Colors.white, size: 28),
@@ -202,7 +349,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     );
   }
 
-  SliverAppBar _buildSliverAppBar(bool innerBoxIsScrolled) {
+  SliverAppBar _buildSliverAppBar(bool innerScrolled) {
     final filtered = _filteredItems;
     return SliverAppBar(
       expandedHeight: 120,
@@ -214,7 +361,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       flexibleSpace: FlexibleSpaceBar(
         titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         title: AnimatedOpacity(
-          opacity: innerBoxIsScrolled ? 1.0 : 0.0,
+          opacity: innerScrolled ? 1.0 : 0.0,
           duration: const Duration(milliseconds: 200),
           child: Text(
             'TỦ ĐỒ (${filtered.length})',
@@ -250,13 +397,11 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                     style: TextStyle(
                       fontSize: 13,
                       color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ],
               ),
               const Spacer(),
-              // Grid/List toggle
               Container(
                 decoration: BoxDecoration(
                   color: const Color(0xFFF0EEE9),
@@ -264,10 +409,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                 ),
                 child: Row(
                   children: [
-                    _toggleButton(
-                        Icons.grid_view_rounded, true, _isGridView),
-                    _toggleButton(
-                        Icons.view_list_rounded, false, _isGridView),
+                    _toggleBtn(Icons.grid_view_rounded, true),
+                    _toggleBtn(Icons.view_list_rounded, false),
                   ],
                 ),
               ),
@@ -278,8 +421,8 @@ class _WardrobeScreenState extends State<WardrobeScreen>
     );
   }
 
-  Widget _toggleButton(IconData icon, bool isGrid, bool currentIsGrid) {
-    final selected = isGrid == currentIsGrid;
+  Widget _toggleBtn(IconData icon, bool isGrid) {
+    final selected = isGrid == _isGridView;
     return GestureDetector(
       onTap: () => setState(() => _isGridView = isGrid),
       child: AnimatedContainer(
@@ -305,11 +448,13 @@ class _WardrobeScreenState extends State<WardrobeScreen>
             height: 48,
             child: ListView(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 16, vertical: 8),
               children: [
                 _categoryChip('Tất cả', null),
                 ..._categories.map(
-                  (c) => _categoryChip(c['categoryName'], c['categoryId']),
+                  (c) => _categoryChip(
+                      c['categoryName'], c['categoryId']),
                 ),
               ],
             ),
@@ -331,8 +476,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
           color: selected ? Colors.black : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: selected ? Colors.black : Colors.black12,
-          ),
+              color: selected ? Colors.black : Colors.black12),
         ),
         child: Text(
           label,
@@ -359,38 +503,31 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 90,
-            height: 90,
+            width: 90, height: 90,
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.grey[100],
-            ),
+              shape: BoxShape.circle, color: Colors.grey[100]),
             child: Icon(Icons.checkroom_outlined,
                 size: 44, color: Colors.grey[350]),
           ),
           const SizedBox(height: 16),
-          const Text(
-            'Tủ đồ trống',
-            style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w800,
-                color: Colors.black),
-          ),
+          const Text('Tủ đồ trống',
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.black)),
           const SizedBox(height: 6),
-          Text(
-            'Thêm trang phục đầu tiên của bạn',
-            style: TextStyle(color: Colors.grey[500]),
-          ),
+          Text('Thêm trang phục đầu tiên của bạn',
+              style: TextStyle(color: Colors.grey[500])),
           const SizedBox(height: 24),
           ElevatedButton.icon(
-            onPressed: _openAddForm,
+            onPressed: _showAddOptions,
             icon: const Icon(Icons.add),
             label: const Text('Thêm sản phẩm'),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.black,
               foregroundColor: Colors.white,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               elevation: 0,
@@ -400,8 +537,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       ),
     );
   }
-
-  // ─── Grid view ────────────────────────────────────────────────────────────
 
   Widget _buildGrid(List<Map<String, dynamic>> items) {
     return GridView.builder(
@@ -440,24 +575,22 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image section
             Expanded(
               child: Stack(
                 children: [
-                  // Image
                   ClipRRect(
                     borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(16)),
                     child: imageFile.existsSync()
                         ? Image.file(imageFile,
-                            width: double.infinity, fit: BoxFit.cover)
+                            width: double.infinity,
+                            fit: BoxFit.cover)
                         : Container(
                             color: const Color(0xFFF0EEE9),
                             child: Icon(Icons.checkroom,
                                 color: Colors.grey[300], size: 48),
                           ),
                   ),
-                  // Style badge top-left
                   if (styleName != null)
                     Positioned(
                       top: 8,
@@ -480,23 +613,20 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                         ),
                       ),
                     ),
-                  // More options top-right
                   Positioned(
                     top: 4,
                     right: 4,
                     child: GestureDetector(
                       onTap: () => _showContextMenu(item),
                       child: Container(
-                        width: 28,
-                        height: 28,
+                        width: 28, height: 28,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.9),
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.1),
-                              blurRadius: 4,
-                            ),
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4),
                           ],
                         ),
                         child: const Icon(Icons.more_horiz,
@@ -507,31 +637,22 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                 ],
               ),
             ),
-            // Info section
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    item['name'] ?? '',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(item['name'] ?? '',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Text(
-                        item['categoryName'] ?? '',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.grey[500],
-                        ),
-                      ),
+                      Text(item['categoryName'] ?? '',
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey[500])),
                       const Spacer(),
                       if (colorHex != null) _colorDot(colorHex),
                     ],
@@ -544,8 +665,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       ),
     );
   }
-
-  // ─── List view ────────────────────────────────────────────────────────────
 
   Widget _buildList(List<Map<String, dynamic>> items) {
     return ListView.builder(
@@ -578,7 +697,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
         ),
         child: Row(
           children: [
-            // Image
             ClipRRect(
               borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(16)),
@@ -586,34 +704,26 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                   ? Image.file(imageFile,
                       width: 90, height: 90, fit: BoxFit.cover)
                   : Container(
-                      width: 90,
-                      height: 90,
+                      width: 90, height: 90,
                       color: const Color(0xFFF0EEE9),
                       child: Icon(Icons.checkroom,
                           color: Colors.grey[300], size: 32),
                     ),
             ),
             const SizedBox(width: 14),
-            // Info
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      item['name'] ?? '',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                    ),
+                    Text(item['name'] ?? '',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 15)),
                     const SizedBox(height: 4),
-                    Text(
-                      item['categoryName'] ?? '',
-                      style:
-                          TextStyle(fontSize: 12, color: Colors.grey[500]),
-                    ),
+                    Text(item['categoryName'] ?? '',
+                        style: TextStyle(
+                            fontSize: 12, color: Colors.grey[500])),
                     if (styleName != null || colorHex != null) ...[
                       const SizedBox(height: 6),
                       Row(
@@ -626,14 +736,11 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                                 color: Colors.black,
                                 borderRadius: BorderRadius.circular(5),
                               ),
-                              child: Text(
-                                styleName,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
+                              child: Text(styleName,
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700)),
                             ),
                           if (colorHex != null) ...[
                             const SizedBox(width: 6),
@@ -646,7 +753,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                 ),
               ),
             ),
-            // Actions
             Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -656,8 +762,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
                   onPressed: () => _openEditForm(item),
                 ),
                 IconButton(
-                  icon:
-                      const Icon(Icons.delete_outline, size: 20),
+                  icon: const Icon(Icons.delete_outline, size: 20),
                   color: Colors.red[300],
                   onPressed: () => _deleteItem(item),
                 ),
@@ -669,8 +774,6 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       ),
     );
   }
-
-  // ─── Context menu (long press) ────────────────────────────────────────────
 
   void _showContextMenu(Map<String, dynamic> item) {
     showModalBottomSheet(
@@ -686,82 +789,50 @@ class _WardrobeScreenState extends State<WardrobeScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 36,
-              height: 4,
+              width: 36, height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 16),
-            Text(
-              item['name'] ?? '',
-              style: const TextStyle(
-                  fontSize: 16, fontWeight: FontWeight.w700),
-            ),
+            Text(item['name'] ?? '',
+                style: const TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
-            _menuTile(
-              icon: Icons.visibility_outlined,
-              label: 'Xem chi tiết',
-              onTap: () {
-                Navigator.pop(ctx);
-                _openDetail(item);
-              },
-            ),
-            _menuTile(
-              icon: Icons.edit_outlined,
-              label: 'Chỉnh sửa',
-              onTap: () {
-                Navigator.pop(ctx);
-                _openEditForm(item);
-              },
-            ),
-            _menuTile(
-              icon: Icons.delete_outline,
-              label: 'Xóa sản phẩm',
-              color: Colors.red[400]!,
-              onTap: () {
-                Navigator.pop(ctx);
-                _deleteItem(item);
-              },
-            ),
+            _menuTile(Icons.visibility_outlined, 'Xem chi tiết', () {
+              Navigator.pop(ctx);
+              _openDetail(item);
+            }),
+            _menuTile(Icons.edit_outlined, 'Chỉnh sửa', () {
+              Navigator.pop(ctx);
+              _openEditForm(item);
+            }),
+            _menuTile(Icons.delete_outline, 'Xóa sản phẩm', () {
+              Navigator.pop(ctx);
+              _deleteItem(item);
+            }, color: Colors.red[400]!),
           ],
         ),
       ),
     );
   }
 
-  Widget _menuTile({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    Color color = Colors.black,
-  }) {
+  Widget _menuTile(IconData icon, String label, VoidCallback onTap,
+      {Color color = Colors.black}) {
     return ListTile(
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 40, height: 40,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
-          shape: BoxShape.circle,
-        ),
+          color: color.withOpacity(0.08), shape: BoxShape.circle),
         child: Icon(icon, color: color, size: 20),
       ),
-      title: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w600,
-          fontSize: 15,
-        ),
-      ),
+      title: Text(label,
+          style: TextStyle(
+              color: color, fontWeight: FontWeight.w600, fontSize: 15)),
       onTap: onTap,
-      shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
   }
-
-  // ─── Helpers ──────────────────────────────────────────────────────────────
 
   Widget _colorDot(String hex) {
     Color? c;
@@ -770,8 +841,7 @@ class _WardrobeScreenState extends State<WardrobeScreen>
       c = Color(int.parse('FF$h', radix: 16));
     } catch (_) {}
     return Container(
-      width: 14,
-      height: 14,
+      width: 14, height: 14,
       decoration: BoxDecoration(
         color: c ?? Colors.grey,
         shape: BoxShape.circle,

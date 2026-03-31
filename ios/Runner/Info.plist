@@ -2,6 +2,17 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>https</string>
+		<string>http</string>
+	</array>
+    <key>NSCameraUsageDescription</key>
+    <string>Cần truy cập camera để chụp ảnh trang phục</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Cần truy cập thư viện ảnh để chọn ảnh trang phục</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Cần vị trí để hiển thị thời tiết chính xác</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
